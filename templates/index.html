@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Python Poll</title>
+	<link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css">
+	<style type="text/css">
+		.poll-member h1 {
+			cursor: pointer
+		}
+
+        .poll-member {
+            padding-bottom:15px;
+        }
+
+        .poll-member.hidden {
+
+            opacity: 30%;
+        }
+
+    .percentageBarParent{
+      height: 22px;
+      width: 100%;
+      border: 1px solid black;
+        margin-top:5px;
+    }
+
+    .percentageBar {
+      height: 20px;
+      width: 0%;
+    }
+
+    .admin_html {
+        margin:5px;
+        padding:5px;
+        border: 1px dotted #999;
+    }
+    .admin_html span {
+        cursor: pointer;
+    }
+    .admin_html span.selected {
+        font-weight: bold;
+    }
+
+    .admin_html a {
+        cursor: pointer;
+     }
+
+    #j .admin_html {
+        visibility: hidden;
+    }
+
+.wrapper {
+    display: grid;
+    grid-gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 3fr) ) ;
+    background-color: #fff;
+    color: #444;
+  }
+
+  .box {
+
+  }
+
+  #j .poll-member.hidden {
+      display:none;
+  }
+
+  #j.hide .percentageBarParent {
+      display: none;
+  }
+
+    #j.show .percentageBarParent {
+      display: block;
+  }
+    #j .toggleshow { display: none; }
+
+    .poll-member.selected IMG {
+        border: 3px solid #900;
+    }
+
+    .buttons {
+        text-align:center;
+    }
+    .button {
+        padding-right:5px;
+        font-size:22px;
+        cursor:pointer;
+        color:#AAA;
+    }
+    .button.selected {
+        color: #900;
+        font-weight:bold;
+    }
+
+    .lightbox {
+	position: fixed;
+	background: rgba(0, 0, 0, 0.90);
+	display: none;
+	z-index: 100;
+}
+
+.lightbox .img-show {
+	position: absolute;
+	height: 100%;
+	width: 100%;
+	box-sizing: border-box;
+	text-align: center;
+}
+
+.img-caption {
+	background: rgba(0, 0, 0, 0.3);
+	padding: 10px;
+	position: absolute;
+	bottom: 0;
+	display: block;
+	z-index: 101;
+	color: #fff;
+	text-shadow: 1px 0.4px rgba(0, 0, 0, 0.5);
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.lightbox .btn-close {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	width: 32px;
+	height: 32px;
+	border: 1px solid #fff;
+	background: rgba(255, 255, 255, 0.5);
+	border-radius: 50%;
+	text-align: center;
+	font-size: 18pt;
+	z-index: 101;
+	cursor: pointer;
+    display: none;
+}
+
+.lightbox .btn-close:hover {
+	background: #fff;
+}
+
+.lightbox .lightbox-status {
+	display:none !important;
+}
+
+.img-show img {
+
+
+	position: absolute;
+	display: block;
+	top: 0;
+	bottom: 0;
+	margin-left: 50%;
+    margin-top: 0px;
+    transform: translate(-50%, 0%);
+    max-height: 100vh;
+}
+
+
+/* Next and Previous Buttons */
+
+.btn-prev,
+.btn-next {
+	display:none !important;
+}
+
+.btn-prev:hover,
+.btn-next:hover {
+	background: rgba(0, 0, 0, 0.7);
+	color: #fff;
+	transition: .4s;
+	-webkit-transition: .4s;
+	-moz-transition: .4s;
+	-ms-transition: 0.4s;
+	-o-transition: .4s;
+}
+
+.btn-prev {
+	left: 5px;
+}
+
+.btn-next {
+	right: 5px;
+}
+
+.btn-prev:before {
+	content: "\f104";
+}
+
+.btn-next:before {
+	content: "\f105";
+}
+
+@media only screen and ( min-width: 680px) {
+	.lightbox {
+		border-radius: 5px;
+		box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.5);
+	}
+}
+
+        .lightbox-status { display: none !important; }
+        .btn-close { display: none !important; }
+
+        figcaption { display: none !important;}
+
+body { height: 100vh; }
+
+
+
+
+	</style>
+</head>
+<body id="{{ vote_type }}" class="hide" folder="{{ photos_folder }}">
+	<div style="margin: 0 10px 0 10px">
+      <div>
+        <div>
+            <div class="admin_html">{{ admin_html|safe }}</div>
+
+            <h2>{{ name }}</h2>
+            <div class="wrapper">
+{{html|safe}}
+
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCRIPTS -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.16.2/axios.js"></script>
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script type="text/javascript" src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js"></script>
+    <script src="https://js.pusher.com/4.0/pusher.min.js"></script>
+	<script type="text/javascript" src="{{ url_for('static', filename='app.js') }}" defer></script>
+	<script type="text/javascript" src="{{ url_for('static', filename='jquery.popup.lightbox.js') }}" defer></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/tinysort/3.2.8/tinysort.min.js" integrity="sha512-P3lisBxY1PusizpelihVrBeciBfWA9r7Ff/8j16b4K399OWJIrY1UdzdE7/BctqKv6Xujr8hp3IA2XiQX3Bsew==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tinysort/3.2.8/jquery.tinysort.min.js" integrity="sha512-g9q+EbCl88hk4BDCh+yjH9ea8UuxLJ18i4P3gHyAY7ccCperjfQ9o5WxeGgnYr7R4AUbw1GmsO/QGfW5pyfpfw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tinysort/3.2.8/tinysort.charorder.min.js" integrity="sha512-BJlfUmOcHl5HmQUx6GJ/PbL/lFCOphweGBurfs71cbJvg2r2e+t1XMc6P0nIFkeidrVmlwtnMAYNnMgsW221XQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script></body>
+</html>
