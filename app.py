@@ -4,9 +4,10 @@ from flask_cors import CORS, cross_origin
 from pusher import Pusher
 import simplejson, json
 import os, pickle
+import psycopg2
 
 from pusher_config_master import app_id, key as app_key, secret as app_secret, cluster
-
+from dbconfig import hostname, username, password, database
 
 photos_root = "/var/www/python-realtime-poll-pusher/static/photos"
 
@@ -45,9 +46,19 @@ app.debug=True
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
 pusher = Pusher(app_id=app_id, key=app_key, secret=app_secret, cluster=u'eu')
-database = "./pythonsqlite.db"
-conn = create_connection(database)
-c = conn.cursor()
+
+def create_connection():
+    try:
+        #conn = sqlite3.connect(database, isolation_level=None, check_same_thread = False)
+        #conn.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+        conn = psycopg2.connect(host=hostname, user=username, password=password, dbname=database)
+        conn.autocommit = True
+        return conn
+    except Error as e:
+        print(e)
+
+
+c = create_connection()
 
 element_html = """
             <div class="box poll-member" id="{id}" pindex="{pindex}">
@@ -100,7 +111,7 @@ def index(id):
 
 
     name = name_lookup[id]
-    admin_html = "folder: "
+    admin_html = "<div>folder: "
     if id in 'PYNR':
         admin_html_template = """
             <span class="folder f{i} {selected}">{i}</span>
@@ -113,12 +124,12 @@ def index(id):
                 else:
                     admin_html += admin_html_template.format(i=i+1, selected='')
 
-        admin_html += "<br>"
+        admin_html += "</div><div>"
         admin_html += """
-        <a onclick="tinysort('.wrapper .poll-member',{order:'desc',selector:'.score'})">sort by score</a> : 
-    <a onclick="tinysort('.wrapper .poll-member',{selector:'h3'})">sort reset</a> :
-    <a onclick="reset_scores()">set scores to zero</a> : 
-    <span class="toggleshow"><span class="showing">hide results from judges</span><span class="hiding">show results to judges</span></span>
+        <a onclick="tinysort('.wrapper .poll-member',{order:'desc',selector:'.score'})">sort by score</a> /
+    <a onclick="tinysort('.wrapper .poll-member',{selector:'h3'})">sort reset</a> /
+    <a onclick="reset_scores()">set scores to zero</a> /
+    <span class="toggleshow"><span class="showing">hide results from judges</span><span class="hiding">show results to judges</span></span></div>
     """
 
     for i in range(num_elements):

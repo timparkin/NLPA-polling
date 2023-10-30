@@ -1,58 +1,66 @@
 import sqlite3, json
 from sqlite3 import Error
+import psycopg2
+from dbconfig import hostname, username, password, database
+
+
 
  # Mods for folder store. Add folder to database, create items for N folders. Add folder to store calls
 
-def create_connection(database):
+def create_connection():
     try:
-        conn = sqlite3.connect(database, isolation_level=None, check_same_thread = False)
-        conn.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
-        
+        #conn = sqlite3.connect(database, isolation_level=None, check_same_thread = False)
+        #conn.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
+        conn = psycopg2.connect(host=hostname, user=username, password=password, dbname=database)
+        conn.autocommit = True
         return conn
     except Error as e:
         print(e)
 
 def create_table(c):
+    cur = c.cursor()
     sql = """ 
         CREATE TABLE IF NOT EXISTS items (
-            i integer PRIMARY KEY,
+          
             n varchar(225) NOT NULL,
             p varchar(225) NOT NULL,
             f varchar(225) NOT NULL,
             v integer NOT NULL Default 0
         ); 
     """
-    c.execute(sql)
+    cur.execute(sql)
     sql = """
         CREATE TABLE IF NOT EXISTS meta (
-            i integer PRIMARY KEY,
+     
             k varchar(225) NOT NULL,
             v varchar(225) NOT NULL
         );
         """
-    c.execute(sql)
+    cur.execute(sql)
     sql = """
         INSERT INTO meta(k,v) VALUES ('show','false');
     """
-    c.execute(sql)
+    cur.execute(sql)
     sql = """
         INSERT INTO meta(k,v) VALUES ('folder', '2');
     """
-    c.execute(sql)
+    cur.execute(sql)
 
 def create_item(c, item):
+
+    cur = c.cursor()
+
     sql = ''' INSERT INTO items(n,p,f)
-              VALUES (?,?,?) '''
-    c.execute(sql, item)
+              VALUES (%s,%s,%s) '''
+    cur.execute(sql, item)
 
 def update_item_set(c, data):
-
+    cur = c.cursor()
 
     name = data['id']
     place = 4 - data['bid']
     member = data['member']
     f = get_photos_folder(c)
-    print('update_item_set', (name, member, (4-place)))
     if name in "PYNR":
         mult = 0.5
     else:
@@ -61,55 +69,62 @@ def update_item_set(c, data):
     if name != 'X':
         sql = ''' UPDATE items
                   SET v = 0
-                  WHERE n = ? and v = ? and f = ?'''
-        c.execute(sql, (name, place*mult,f))
+                  WHERE n = %s and v = %s and f = %s'''
+        cur.execute(sql, (name, place*mult,f))
 
     sql = ''' UPDATE items
-              SET v = ?
-              WHERE n = ? and p = ? and f = ?'''
+              SET v = %s
+              WHERE n = %s and p = %s and f = %s'''
 
-    c.execute(sql, (place*mult, name, member, f))
+    cur.execute(sql, (place*mult, name, member, f))
 
 def update_item_reset(c, item):
+    cur = c.cursor()
     f = get_photos_folder(c)
     sql = ''' UPDATE items
               SET v = 0
-              WHERE n = ? and p = ? and f = ? '''
-    c.execute(sql, (item, f))
+              WHERE n = %s and p = %s and f = %s '''
+    cur.execute(sql, (item, f))
 
 def select_all_items(c):
+    cur = c.cursor()
     f = get_photos_folder(c)
-    print(f)
-    sql = ''' SELECT * FROM items where f = ? and not v = 0 '''
-    c.execute(sql, f)
+    sql = ''' SELECT * FROM items where f = %s and not v = 0 '''
+    cur.execute(sql, f)
  
-    rows = c.fetchall()
-    return json.dumps(rows)
+    rows = cur.fetchall()
+    out = []
+    for row in rows:
+        out.append( {'n':row[0], 'p':row[1], 'f':row[2], 'v':row[3]} )
+
+    return json.dumps(out)
 
 
 def toggle_show(c):
-    sql = ''' SELECT * FROM meta where k="show" '''
-    c.execute(sql)
-    rows = c.fetchall()
-    if rows[0]['v'] == 'true':
-        sql = ''' UPDATE meta
-                  SET v = "false"
-                  WHERE k = "show"'''
+    cur = c.cursor()
+    sql = """ SELECT * FROM meta where k='show' """
+    cur.execute(sql)
+    rows = cur.fetchall()
+    if rows[0][1] == 'true':
+        sql = """ UPDATE meta
+                  SET v = 'false'
+                  WHERE k = 'show'"""
         show = 'False'
     else:
-        sql = ''' UPDATE meta
-                  SET v = "true"
-                  WHERE k = "show"'''
+        sql = """ UPDATE meta
+                  SET v = 'true'
+                  WHERE k = 'show'"""
         show = 'True'
-    c.execute(sql)
+    cur.execute(sql)
     return show
 
 
 def get_show(c):
-    sql = ''' SELECT * FROM meta where k="show" '''
-    c.execute(sql)
-    rows = c.fetchall()
-    if rows[0]['v'] == 'true':
+    cur = c.cursor()
+    sql = """ SELECT * FROM meta where k='show' """
+    cur.execute(sql)
+    rows = cur.fetchall()
+    if rows[0][1] == 'true':
         show = 'True'
     else:
         show = 'False'
@@ -117,17 +132,19 @@ def get_show(c):
 
 
 def get_photos_folder(c):
-    sql = ''' SELECT * FROM meta where k="folder" '''
-    c.execute(sql)
-    rows = c.fetchall()
-    return rows[0]['v']
+    cur = c.cursor()
+    sql = """ SELECT * FROM meta where k='folder' """
+    cur.execute(sql)
+    rows = cur.fetchall()
+    return rows[0][1]
 
 def change_photos_folder(c, folder):
-    sql = ''' UPDATE meta
-              SET v = ?
-              WHERE k = "folder"'''
+    cur = c.cursor()
+    sql = """ UPDATE meta
+              SET v = %s
+              WHERE k = 'folder'"""
 
-    c.execute(sql, [folder+1])
+    cur.execute(sql, [folder+1])
     # sql = ''' UPDATE items
     #           SET v = 0'''
     # c.execute(sql)
@@ -135,16 +152,16 @@ def change_photos_folder(c, folder):
 
 
 def db_reset_scores(c, folder):
+    cur = c.cursor()
     sql = ''' UPDATE items
-              SET v = 0 where f = ?'''
-    c.execute(sql, folder)
+              SET v = 0 where f = %s'''
+    cur.execute(sql, folder)
     return
 
 def main():
-    database = "./pythonsqlite.db"
 
     # create a database connection
-    conn = create_connection(database)
+    conn = create_connection()
 
     # create items table
     create_table(conn)
