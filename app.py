@@ -118,7 +118,7 @@ def index(id):
         <a onclick="tinysort('.wrapper .poll-member',{order:'desc',selector:'.score'})">sort by score</a> : 
     <a onclick="tinysort('.wrapper .poll-member',{selector:'h3'})">sort reset</a> :
     <a onclick="reset_scores()">set scores to zero</a> : 
-    <span class="toggleshow">toggle show</span>
+    <span class="toggleshow"><span class="showing">hide results from judges</span><span class="hiding">show results to judges</span></span>
     """
 
     for i in range(num_elements):

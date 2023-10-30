@@ -222,6 +222,20 @@ channel.bind('vote', function(data) {
           }
         }
 
+        if (document.getElementById("o")) {
+          if (data == 'True') {
+            if (document.getElementById("o").classList.contains('hide')) {
+              document.getElementById("o").classList.remove('hide');
+            }
+            document.getElementById("o").classList.add('show');
+          } else {
+            if (document.getElementById("o").classList.contains('show')) {
+              document.getElementById("o").classList.remove('show');
+            }
+            document.getElementById("o").classList.add('hide');
+          }
+        }
+
       });
 
 
