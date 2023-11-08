@@ -84,9 +84,9 @@ def index(id):
     html = ''
 
     if id in "PYNR":
-        mult = 0.5
+        mult = 1 
     else:
-        mult = 1
+        mult = 2
     vote_type = vote_types[id]
 
     photos_folder = get_photos_folder(c)
@@ -111,16 +111,16 @@ def index(id):
 
 
     name = name_lookup[id]
-    admin_html = "<div>folder: "
+    admin_html = ""
     if id in 'PYNR':
+        admin_html = "<div>folder: "
         admin_html_template = """
             <span class="folder f{i} {selected}">{i}</span>
         """
-
         for i in range(24):
             if os.path.isdir(os.path.join(photos_root,str(i+1))):
                 if photos_folder == str(i+1):
-                    admin_html += admin_html_template.format(i=i + 1, selected='selected')
+                    admin_html += admin_html_template.format(i=i+1, selected='selected')
                 else:
                     admin_html += admin_html_template.format(i=i+1, selected='')
 
@@ -181,9 +181,8 @@ def hide():
     if data['hide'] == 'hide':
         data['bid'] = 0
     else:
-        data['bid'] = 4
+        data['bid'] = 2
 
-    print(data)
     update_item_set(c, data)
     # fire an update with all of this data
     pusher.trigger(u'poll', u'hide', json.dumps(data))

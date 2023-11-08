@@ -45,6 +45,12 @@ pollMembers.forEach((pollMember, index) => {
     buttons.forEach((button, bindex) => {
 
       button.addEventListener('click', (event) => {
+
+        if (button.classList.contains('selected')) {
+            already_selected = true
+        } else {
+            already_selected = false
+        }
         handlePoll(pollMember.getAttribute('pindex'), pollMember.id,  bindex)
 
         pollMember_buttons = pollMember.querySelectorAll('.button')
@@ -61,8 +67,9 @@ pollMembers.forEach((pollMember, index) => {
         pollMember_buttons.forEach( (pollMember_button, pollMember_button_index ) => {
                 pollMember_button.classList.remove('selected')
             })
-
-        button.classList.add('selected')
+        if (already_selected == false) {
+            button.classList.add('selected')
+        }
       }, true)
 
 

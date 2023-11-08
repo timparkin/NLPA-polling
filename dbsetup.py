@@ -19,8 +19,8 @@ def create_connection():
 
 def create_table(c):
     cur = c.cursor()
-    sql = """ 
-        CREATE TABLE IF NOT EXISTS items (
+    sql = """
+        CREATE TABLE items (
           
             n varchar(225) NOT NULL,
             p varchar(225) NOT NULL,
@@ -62,21 +62,32 @@ def update_item_set(c, data):
     member = data['member']
     f = get_photos_folder(c)
     if name in "PYNR":
-        mult = 0.5
-    else:
         mult = 1
+    else:
+        mult = 2
+
+    sql = '''SELECT v FROM items WHERE v = %s and  n = %s and p = %s and f = %s'''
+    cur.execute(sql, (place*mult, name, member, f))
+    rows = cur.fetchall()
+
+    if len(rows) != 0:
+        found_item = True
+    else:
+        found_item = False
 
     if name != 'X':
+
         sql = ''' UPDATE items
                   SET v = 0
                   WHERE n = %s and v = %s and f = %s'''
         cur.execute(sql, (name, place*mult,f))
 
-    sql = ''' UPDATE items
-              SET v = %s
-              WHERE n = %s and p = %s and f = %s'''
+    if not found_item:
+        sql = ''' UPDATE items
+                  SET v = %s
+                  WHERE n = %s and p = %s and f = %s'''
 
-    cur.execute(sql, (place*mult, name, member, f))
+        cur.execute(sql, (place*mult, name, member, f))
 
 def update_item_reset(c, item):
     cur = c.cursor()
@@ -96,7 +107,6 @@ def select_all_items(c):
     out = []
     for row in rows:
         out.append( {'n':row[0], 'p':row[1], 'f':row[2], 'v':row[3]} )
-
     return json.dumps(out)
 
 
@@ -153,8 +163,8 @@ def change_photos_folder(c, folder):
 
 def db_reset_scores(c, folder):
     cur = c.cursor()
-    sql = ''' UPDATE items
-              SET v = 0 where f = %s'''
+    sql = """ UPDATE items
+              SET v = 0 where f = %s AND n != 'X'"""
     cur.execute(sql, folder)
     return
 
