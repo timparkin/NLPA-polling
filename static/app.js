@@ -185,8 +185,7 @@ channel.bind('vote', function(data) {
     }
 
 
-
-    if (hide[pindex] == '4') {
+    if (hide[pindex] == '8') {
       p.classList.add('hidden');
     } else {
       p.classList.remove('hidden')

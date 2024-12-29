@@ -1,8 +1,9 @@
-import sqlite3, json
-from sqlite3 import Error
 import psycopg2
+import os
+import json
 from dbconfig import hostname, username, password, database
 
+photos_root = "/var/www/python-realtime-poll-pusher/static/photos"
 
 
  # Mods for folder store. Add folder to database, create items for N folders. Add folder to store calls
@@ -19,6 +20,10 @@ def create_connection():
 
 def create_table(c):
     cur = c.cursor()
+    sql = "DROP TABLE META"
+    cur.execute(sql)
+    sql = "DROP TABLE ITEMS"
+    cur.execute(sql)
     sql = """
         CREATE TABLE items (
           
@@ -42,7 +47,7 @@ def create_table(c):
     """
     cur.execute(sql)
     sql = """
-        INSERT INTO meta(k,v) VALUES ('folder', '2');
+        INSERT INTO meta(k,v) VALUES ('folder', 'a');
     """
     cur.execute(sql)
 
@@ -101,7 +106,7 @@ def select_all_items(c):
     cur = c.cursor()
     f = get_photos_folder(c)
     sql = ''' SELECT * FROM items where f = %s and not v = 0 '''
-    cur.execute(sql, f)
+    cur.execute(sql, (f,))
  
     rows = cur.fetchall()
     out = []
@@ -154,7 +159,7 @@ def change_photos_folder(c, folder):
               SET v = %s
               WHERE k = 'folder'"""
 
-    cur.execute(sql, [folder+1])
+    cur.execute(sql, (folder,))
     # sql = ''' UPDATE items
     #           SET v = 0'''
     # c.execute(sql)
@@ -165,7 +170,7 @@ def db_reset_scores(c, folder):
     cur = c.cursor()
     sql = """ UPDATE items
               SET v = 0 where f = %s AND n != 'X'"""
-    cur.execute(sql, folder)
+    cur.execute(sql, (folder,))
     return
 
 def main():
@@ -175,8 +180,10 @@ def main():
 
     # create items table
     create_table(conn)
-    for folder in range(10):
-        for name in 'CMVTAPYNRX':
+    dirs = os.listdir(photos_root)
+    sdirs = sorted(dirs)
+    for folder in sdirs:
+        for name in 'LMVFBPYNRX':
             for photo in range(24):
                 create_item(conn, (name,photo,folder))
     print("Connection established!")

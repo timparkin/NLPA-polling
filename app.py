@@ -5,18 +5,18 @@ from pusher import Pusher
 import simplejson, json
 import os, pickle
 import psycopg2
-
+import subprocess
 from pusher_config_master import app_id, key as app_key, secret as app_secret, cluster
 from dbconfig import hostname, username, password, database
 
 photos_root = "/var/www/python-realtime-poll-pusher/static/photos"
 
 name_lookup = {
-    'C': 'Charlotte Gibb',
-    'M': 'Michael Shainblum',
+    'L': 'Lizzie Shepherd',
+    'M': 'Matt Palmer',
     'V': 'Victoria Haack',
-    'T': 'Theo Bosboom',
-    'A': 'Andy Mumford',
+    'F': 'Michael Frye',
+    'B': 'Ben Horne',
     'P': 'Tim Parkin',
     'Y': 'Matt Payne',
     'N': 'Alex Nail',
@@ -25,11 +25,11 @@ name_lookup = {
 
 }
 vote_types = {
-    'C': 'j',
+    'L': 'j',
     'M': 'j',
     'V': 'j',
-    'T': 'j',
-    'A': 'j',
+    'F': 'j',
+    'B': 'j',
     'P': 'o',
     'Y': 'o',
     'N': 'o',
@@ -38,7 +38,7 @@ vote_types = {
 }
 
 
-photos_folder = "/var/www/python-realtime-poll-pusher/static/photos/1"
+photos_folder = "a"
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -49,8 +49,6 @@ pusher = Pusher(app_id=app_id, key=app_key, secret=app_secret, cluster=u'eu')
 
 def create_connection():
     try:
-        #conn = sqlite3.connect(database, isolation_level=None, check_same_thread = False)
-        #conn.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
         conn = psycopg2.connect(host=hostname, user=username, password=password, dbname=database)
         conn.autocommit = True
         return conn
@@ -61,7 +59,7 @@ def create_connection():
 c = create_connection()
 
 element_html = """
-            <div class="box poll-member" id="{id}" pindex="{pindex}">
+            <div class="box poll-member {hidden}" id="{id}" pindex="{pindex}">
               
                 <h3>{element_name}</h3>
                 <img class="img-thumbnail" src="/static/photos/{photos_folder}/{photo}" width="100%" />
@@ -85,8 +83,10 @@ def index(id):
 
     if id in "PYNR":
         mult = 1 
-    else:
+    elif id != "X":
         mult = 2
+    else:
+        mult = 0
     vote_type = vote_types[id]
 
     photos_folder = get_photos_folder(c)
@@ -99,15 +99,21 @@ def index(id):
     photo2 = None
     photo3 = None
     photo4 = None
-    for r in json.loads(output):
-        if r['n'] == id and r['v'] == 1*mult:
-            photo4 = r['p']
-        if r['n'] == id and r['v'] == 2*mult:
-            photo3 = r['p']
-        if r['n'] == id and r['v'] == 3*mult:
-            photo2 = r['p']
-        if r['n'] == id and r['v'] == 4*mult:
-            photo1 = r['p']
+    hidden = []
+    if id != "X":
+        for r in json.loads(output):
+            if r['n'] == 'X' and r['v'] == '8':
+                hidden.append(int(r['p']))
+            if r['n'] == id and r['v'] == 1*mult:
+                photo4 = r['p']
+            if r['n'] == id and r['v'] == 2*mult:
+                photo3 = r['p']
+            if r['n'] == id and r['v'] == 3*mult:
+                photo2 = r['p']
+            if r['n'] == id and r['v'] == 4*mult:
+                photo1 = r['p']
+
+            
 
 
     name = name_lookup[id]
@@ -115,14 +121,15 @@ def index(id):
     if id in 'PYNR':
         admin_html = "<div>folder: "
         admin_html_template = """
-            <span class="folder f{i} {selected}">{i}</span>
+            <span id="{i}" class="folder f{i} {selected}">{i}</span>
         """
-        for i in range(24):
-            if os.path.isdir(os.path.join(photos_root,str(i+1))):
-                if photos_folder == str(i+1):
-                    admin_html += admin_html_template.format(i=i+1, selected='selected')
-                else:
-                    admin_html += admin_html_template.format(i=i+1, selected='')
+        dirs = os.listdir(photos_root)
+        sdirs = sorted(dirs)
+        for i in sdirs:
+            if photos_folder == i:
+                admin_html += admin_html_template.format(i=i, selected='selected')
+            else:
+                admin_html += admin_html_template.format(i=i, selected='')
 
         admin_html += "</div><div>"
         admin_html += """
@@ -133,6 +140,7 @@ def index(id):
     """
 
     for i in range(num_elements):
+        is_hidden = ''
         if photo1 and i == int(photo1):
             selected1 = 'selected'
         else:
@@ -149,7 +157,9 @@ def index(id):
             selected4 = 'selected'
         else:
             selected4 = ''
-        html += element_html.format( pindex=i, element_name=i+1,id=id,photo=photos[i],photos_folder=photos_folder,selected1=selected1,selected2=selected2,selected3=selected3,selected4=selected4)
+        if i in hidden:
+            is_hidden = 'hidden'
+        html += element_html.format( hidden=is_hidden, pindex=i, element_name=i+1,id=id,photo=photos[i],photos_folder=photos_folder,selected1=selected1,selected2=selected2,selected3=selected3,selected4=selected4)
     return render_template('index.html', html=html, vote_type=vote_type,admin_html=admin_html, name=name, photos_folder = photos_folder)
 
 @app.route('/admin')
@@ -215,7 +225,7 @@ def getshow():
 def change_folder():
     # get all data back from db
     data = simplejson.loads(request.data)
-    folder = data['index']
+    folder = data['id']
     change_photos_folder(c, folder)
     output = select_all_items(c)
     pusher.trigger(u'poll', u'refresh', output)
@@ -230,6 +240,89 @@ def reset_scores():
     pusher.trigger(u'poll', u'refresh', output)
     return output
 
+@app.route('/check_books', methods=['GET', 'POST'])
+def check_books():
+
+
+    html = """
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+#customers {
+  font-family: Arial, Helvetica, sans-serif;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+#customers td, #customers th {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+#customers tr:nth-child(even){background-color: #f2f2f2;}
+
+#customers tr:hover {background-color: #ddd;}
+
+#customers th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  text-align: left;
+  background-color: #04AA6D;
+  color: white;
+}
+</style>
+</head>
+<body>
+"""
+    volume = request.args.get('volume','1,2')
+    country = request.args.get('country','US')
+    findid = request.args.get('findid','')
+    findname = request.args.get('findname','')
+    archive = request.args.get('archive','')
+    clearcache = request.args.get('clearcache','')
+
+    form = 'Download the order csv by clicking <a href="/static/orders.csv" />here</a><br>'
+    
+    form += """
+<form action="/check_books",method="get">
+
+    volume: <input name="volume" value="{}" /><br>
+    country: <input name="country" value="{}" /><br>
+    find by name: <input name="findname" value="{}" /><br>
+    find by id: <input name="findid" value="{}" /><br>
+    archive: <input name="archive" value="{}" /><br>
+    clearcache: <input name="clearcache" value="{}" /><br>
+
+    <br><br>
+
+    <button type='submit'>SUBMIT</button>
+
+</form>
+""".format(volume, country, findname, findid, archive, clearcache)
+
+    if clearcache != '':
+        cmd = '/usr/bin/python3 /var/www/python-realtime-poll-pusher/check_books.py --clearcache'
+    elif findname != '':
+        cmd = '/usr/bin/python3 /var/www/python-realtime-poll-pusher/check_books.py --findbyname={} -c static/orders.csv --packing --report -P'.format(findname)
+        if archive != '':
+            cmd += ' -a'
+    elif findid != '':
+        cmd = '/usr/bin/python3 /var/www/python-realtime-poll-pusher/check_books.py --findbyid={} -c static/orders.csv --packing --report -P'.format(findid)
+    else:
+        cmd = '/usr/bin/python3 /var/www/python-realtime-poll-pusher/check_books.py --volume="{}" --country="{}" -c static/orders.csv --packing --report -P'.format(volume,country)
+    output = subprocess.run(cmd, capture_output=True, shell=True)
+    # get all data back from db
+    out = output.stdout.decode()
+    body = html
+    body += cmd + '<br><br>'
+    body += form
+    body += '<pre>'
+    for line in out.split('\\n'):
+        body += line + '</br>'
+    body += '</pre>'
+        
+    return body
 
 
 if __name__ == '__main__':
