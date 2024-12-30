@@ -579,8 +579,13 @@ if __name__ == '__main__':
             csv_data.append( csv_row )
             if printcsv:
                 print('<tr>')
-                for i in csv_row:
-                    print('<td>{}</td>'.format(str(i)))
+                for n, i in enumerate(csv_row):
+                    if n == 0: 
+                        o_url = "https://naturallandscapeawards.com/wp-admin/post.php?action=edit&post="
+                        print('<td><a href="{}{}">{}</a></td>'.format(o_url,str(i),str(i)))
+                    else:
+                        print('<td>{}</td>'.format(str(i)))
+
                 print('</tr>')
                     
             if verbose:
