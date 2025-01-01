@@ -138,15 +138,8 @@ def get_all_wc_orders(wcapi, page=1, status=None):
 
 
 def get_orders(wcapi, status=None):
-    s = Query()
-    d = db.get(s.key == '{}{}'.format(now_hour,status))
-
-    if d:
-        return d['orders']
-    else:
-        orders = get_all_wc_orders(wcapi, status=status)
-        db.insert({'key': '{}{}'.format(now_hour,status), 'orders': orders})
-        return orders
+    orders = get_all_wc_orders(wcapi, status=status)
+    return orders
 
 
 def getsku(vs):
@@ -192,7 +185,10 @@ def printorder(compiled_order):
     print()
     vo = ','.join(compiled_order["vols"])
     print(f'Volumes Ordered: {vo}')
-    vls = ','.join(compiled_order["vols_less_shipped"])
+    if order['status'] == 'processing':
+        vls = ','.join(compiled_order["vols_less_shipped"])
+    else:
+        vls = ''
     print(f'Volumes Left to Ship:  {vls}')
 
     print()
@@ -302,6 +298,9 @@ if __name__ == '__main__':
     parser.add_argument('-P','--printcsv', action='store_true', help="print out the csv file")
     parser.add_argument('-X','--clearcache', action='store_true', help="clear cache")
 
+    parser.add_argument('-f','--datefrom', help='Filter only orders after this date')
+    parser.add_argument('-t','--dateto', help='Filter only orders before this date')
+
 
 
 
@@ -319,27 +318,45 @@ if __name__ == '__main__':
     printcsv = args.printcsv
     clearcache = args.clearcache
 
+    if args.datefrom:
+        datefrom = datetime.strptime(args.datefrom, '%Y-%m-%d')
+    else:
+        datefrom = None
+    if args.dateto:
+        dateto = datetime.strptime(args.dateto, '%Y-%m-%d')
+    else:
+        dateto = None
 
     compiled_orders = {}
 
     countries = set()
 
+    if archived:
+        archived_text = '-archived' 
+    else:
+        archived_text = ''
 
-
-    if os.path.isfile('orders_cache.pickle') and not clearcache:
-        with open('orders_cache.pickle', 'rb') as f:
+    if os.path.isfile(f'orders_cache{archived_text}.pickle') and not clearcache:
+        with open(f'orders_cache{archived_text}.pickle', 'rb') as f:
             compiled_orders = pickle.load(f)
     else:
         if archived:
             orders = get_orders(wcapi, status=None)
+            with open('raw_orders_cache_archived.pickle','wb') as f:
+                pickle.dump(orders, f)
         else:
             orders = get_orders(wcapi, status='processing')
+            with open('raw_orders_cache.pickle','wb') as f:
+                pickle.dump(orders, f)
         for o in orders:
             id = o['id']
             s = o['shipping']
             b = o['billing']
+            date_created = o['date_created']
             fname = s['first_name']
             lname = s['last_name']
+            bfname = b['first_name']
+            blname = b['last_name']
 
             address_1 = s['address_1']
             address_2 = s['address_2']
@@ -352,17 +369,26 @@ if __name__ == '__main__':
             b_phone = b['phone']
             email = b['email']
 
+            if o['status'] not in ['processing','completed']:
+                continue
+
 
             vols = []
             for li in o['line_items']:
+                if 'PDF' in li['name']:
+                    continue
                 if str(li['product_id']) not in id_book_mapping:
                     continue
                 li_vols = list( id_book_mapping[str(li['product_id'])] )
                 vols.extend(li_vols)
 
             vols.sort()
-
-            shipped_orders = search_for_partial_complete_notes(wcapi, id)
+            if len(vols) == 0:
+                continue
+            if not archived:
+                shipped_orders = search_for_partial_complete_notes(wcapi, id)
+            else:
+                shipped_orders = []
 
             vols_less_shipped = []
             for v in vols:
@@ -420,6 +446,8 @@ if __name__ == '__main__':
                 'phone': phone,
                 'phone_format': phone_format,
 
+                'date_created': date_created,
+
                 'vols': vols,
                 'vols_less_shipped': vols_less_shipped,
                 'multi': False, 
@@ -427,19 +455,20 @@ if __name__ == '__main__':
             }
 
             # check for duplicates
-            key = '{}:{},{},{},{}'.format(lname,address_1, city, country, postcode)
 
-            if key in compiled_orders:
+            key = '{}:{},{},{},{}'.format(lname,address_1, city, country, postcode)
+            if key in compiled_orders and not archived:
                 compiled_orders[key]['vols'].extend(vols)
                 compiled_orders[key]['vols_less_shipped'].extend(vols_less_shipped)
                 compiled_orders[key]['multi'] = '**** vols ****'
                 compiled_orders[key]['line_items'].extend( o['line_items'] )
             else:
+                key = id
                 compiled_orders[key] = order
                 compiled_orders[key]['line_items'] = o['line_items']
 
 
-        with open('orders_cache.pickle','wb') as f:
+        with open(f'orders_cache{archived_text}.pickle','wb') as f:
             pickle.dump(compiled_orders, f)
 
     csv_headers = [
@@ -486,15 +515,33 @@ if __name__ == '__main__':
 
             vs = order['vols_less_shipped']
             vs.sort()
+
+            v = order['vols']
+            v.sort()
+
             sku = getsku(vs)
+            if order['o']['status'] == 'completed':
+                vs = []
 
+            if datefrom or dateto:
+                dc = datetime.strptime(order['date_created'], '%Y-%m-%dT%H:%M:%S')
+                if datefrom:
+                    if dc < datefrom:
+                        continue
+                if dateto:
+                    if dc > dateto:
+                        continue
+
+            
             if country_filter:
-
                 if country_filter.startswith('-'):
-                    if order['country'] == country_filter[1:]:
+                    
+                    filter = country_filter[1:].split(',')
+                    if order['country'] in filter:
                         continue
                 else:
-                    if order['country'] != country_filter:
+                    filter = country_filter.split(',')
+                    if order['country'] not in filter:
                         continue
 
             if volume_filter:
@@ -641,40 +688,63 @@ if __name__ == '__main__':
             '3': 0,
             '4': 0,
         }
+        num_by_vol_US_all = {
+            '1': 0,
+            '2': 0,
+            '3': 0,
+            '4': 0,
+        }
+        num_by_vol_ROW_all = {
+            '1': 0,
+            '2': 0,
+            '3': 0,
+            '4': 0,
+        }
 
         for k, order in compiled_orders.items():
 
             if 'infilter' not in order:
                 continue
 
-            vs = order['vols']
+            if order['o']['status'] == 'completed':
+                vls = []
+            elif order['o']['status'] == 'processing':
+                vls = order['vols_less_shipped']
+            vall = order['vols']
+
             if order['country'] == 'US':
-                for v in vs:
+                for v in vls:
                     num_by_vol_US[v] += 1
+                for v in vall:
+                    num_by_vol_US_all[v] += 1
 
             else:
-                for v in vs:
+                for v in vls:
                     num_by_vol_ROW[v] += 1
+                for v in vall:
+                    num_by_vol_ROW_all[v] += 1
+
+
         print(B.HEADER+B.UNDERLINE+'<h3 style="margin-bottom:0">FULL REPORT</h3>'+B.ENDC, end='')
         print(B.UNDERLINE+'<h4>US Orders</h4>'+B.ENDC, end='')
 
-        print('Vol 1 = {}'.format(num_by_vol_US['1']))
-        print('Vol 2 = {}'.format(num_by_vol_US['2']))
-        print('Vol 3 = {}'.format(num_by_vol_US['3']))
-        print('Vol 4 = {}'.format(num_by_vol_US['4']))
+        print('Vol 1 = {} ({})'.format(num_by_vol_US['1'],num_by_vol_US_all['1']))
+        print('Vol 2 = {} ({})'.format(num_by_vol_US['2'],num_by_vol_US_all['2']))
+        print('Vol 3 = {} ({})'.format(num_by_vol_US['3'],num_by_vol_US_all['3']))
+        print('Vol 4 = {} ({})'.format(num_by_vol_US['4'],num_by_vol_US_all['4']))
         print()
         print(B.UNDERLINE+'<h4>ROW Orders</h4>'+B.ENDC, end='')
 
-        print('Vol 1 = {}'.format(num_by_vol_ROW['1']))
-        print('Vol 2 = {}'.format(num_by_vol_ROW['2']))
-        print('Vol 3 = {}'.format(num_by_vol_ROW['3']))
-        print('Vol 4 = {}'.format(num_by_vol_ROW['4']))
+        print('Vol 1 = {} ({})'.format(num_by_vol_ROW['1'],num_by_vol_ROW_all['1']))
+        print('Vol 2 = {} ({})'.format(num_by_vol_ROW['2'],num_by_vol_ROW_all['2']))
+        print('Vol 3 = {} ({})'.format(num_by_vol_ROW['3'],num_by_vol_ROW_all['3']))
+        print('Vol 4 = {} ({})'.format(num_by_vol_ROW['4'],num_by_vol_ROW_all['4']))
         print(B.UNDERLINE+'<h4>All Orders</h4>'+B.ENDC, end='')
 
-        print('Vol 1 = {}'.format(num_by_vol_ROW['1']+num_by_vol_US['1']))
-        print('Vol 2 = {}'.format(num_by_vol_ROW['2']+num_by_vol_US['2']))
-        print('Vol 3 = {}'.format(num_by_vol_ROW['3']+num_by_vol_US['3']))
-        print('Vol 4 = {}'.format(num_by_vol_ROW['4']+num_by_vol_US['4']))
+        print('Vol 1 = {} ({})'.format(num_by_vol_ROW['1']+num_by_vol_US['1'],num_by_vol_ROW_all['1']+num_by_vol_US_all['1']))
+        print('Vol 2 = {} ({})'.format(num_by_vol_ROW['2']+num_by_vol_US['2'],num_by_vol_ROW_all['2']+num_by_vol_US_all['2']))
+        print('Vol 3 = {} ({})'.format(num_by_vol_ROW['3']+num_by_vol_US['3'],num_by_vol_ROW_all['3']+num_by_vol_US_all['3']))
+        print('Vol 4 = {} ({})'.format(num_by_vol_ROW['4']+num_by_vol_US['4'],num_by_vol_ROW_all['4']+num_by_vol_US_all['4']))
         print()
 
 
