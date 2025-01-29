@@ -142,17 +142,32 @@ def get_orders(wcapi, status=None):
     return orders
 
 
-def getsku(vs):
-    v1 = '1' if '1' in vs else '0'
-    v2 = '2' if '2' in vs else '0'
-    v3 = '3' if '3' in vs else '0'
-    v4 = '4' if '4' in vs else '0'
-    if '4' in vs:
-        product_sku = 'NLPA-{}{}{}{}'.format(v1, v2, v3, v4)
-    else:
-        product_sku = 'NLPA-{}{}{}'.format(v1, v2, v3)
-    return product_sku
 
+def getsku(vs):
+    vols = {'1':0,'2':0,'3':0,'4':0}
+    for v in vs:
+        vols[v] = vols[v] + 1
+    sku = 'NLPA-'
+
+    if vols['1'] > 0:
+        sku += '1'*vols['1']
+    else:
+        sku += '0'
+
+    if vols['2'] > 0:
+        sku += '2'*vols['2']
+    else:
+        sku += '0'
+
+    if vols['3'] > 0:
+        sku += '3'*vols['3']
+    else:
+        sku += '0'
+
+    if vols['4'] > 0:
+        sku += '4'*vols['4']
+ 
+    return sku
 
 
 def printorder(compiled_order):
@@ -380,8 +395,10 @@ if __name__ == '__main__':
                 if str(li['product_id']) not in id_book_mapping:
                     continue
                 li_vols = list( id_book_mapping[str(li['product_id'])] )
-                vols.extend(li_vols)
+                quantity = li['quantity']
+                vols.extend(li_vols*quantity)
 
+            print(vols)
             vols.sort()
             if len(vols) == 0:
                 continue
@@ -443,8 +460,8 @@ if __name__ == '__main__':
                 'country': country,
                 'country_name': country_name,
                 'postcode': postcode,
-                'phone': phone,
-                'phone_format': phone_format,
+                'phone_raw': phone,
+                'phone': phone_format,
 
                 'date_created': date_created,
 
@@ -492,9 +509,32 @@ if __name__ == '__main__':
             print('<th>{}</th>'.format(h))
         print('</tr>')
 
+    csvus_headers = [
+        "orderID",
+        "clientid",
+        "custRef",
+        "shipvia",
+        "Product Name",
+        "sku",
+        "qty",
+        "shiptoname",
+        "shiptocmpy",
+        "shipaddr1",
+        "shipaddr2",
+        "shipcity",
+        "shipstate",
+        "shipzip",
+        "shipctry",
+        "shipemail",
+        "shiptophon",
+        "giftMessage",
+        "customPackaging",
+        "requireSignature",
+    ]
           
         
     csv_data = []
+    csvus_data = []
     packing_data = {}
     packing_data_per_book = {}
 
@@ -624,6 +664,34 @@ if __name__ == '__main__':
                     sku,
                 )
             csv_data.append( csv_row )
+
+            if order['country'] == 'US':
+                for vitem in vs:
+                    if vitem == '3' or vitem == '4':
+                        csvus_row = (
+                        order['id'], # order id
+                        order['email'], # clientId
+                        order['email'], # clientRef
+                        'generic_ground', # shipVia
+                        'Natural Landscape Book', # Product Name
+                        'nlpa-00%s'%vitem, # sku
+                        '1', # qty
+                        '%s %s'%(order['fname'], order['lname']), # name
+                        order['company'], # company
+                        order['address_1'], # ad1
+                        order['address_2'], # ad2
+                        order['city'], # city
+                        order['state'], # state
+                        order['postcode'], # zip
+                        order['country'], # country
+                        order['email'], # email
+                        order['phone'], # phone
+                        '', # gift
+                        '', # packaing
+                        'no', # requiresig
+                        )
+                        csvus_data.append( csvus_row )
+
             if printcsv:
                 print('<tr>')
                 for n, i in enumerate(csv_row):
@@ -631,7 +699,7 @@ if __name__ == '__main__':
                         o_url = "https://naturallandscapeawards.com/wp-admin/post.php?action=edit&post="
                         print('<td><a href="{}{}">{}</a></td>'.format(o_url,str(i),str(i)))
                     else:
-                        print('<td>{}</td>'.format(str(i)))
+                        print('<td style="white-space: nowrap;">{}</td>'.format(str(i)))
 
                 print('</tr>')
                     
@@ -656,6 +724,17 @@ if __name__ == '__main__':
 
             # Write the rows
             writer.writerows(csv_data)
+
+        filename = '/var/www/python-realtime-poll-pusher/%s'%csv_out
+        filename = filename.replace('static/','static/us_')
+        with open(filename, mode="w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+
+            # Write the header
+            writer.writerow(csvus_headers)
+
+            # Write the rows
+            writer.writerows(csvus_data)
 
     print('</table><pre>')
     if packing:

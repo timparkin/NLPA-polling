@@ -279,19 +279,23 @@ def check_books():
     country = request.args.get('country','US')
     findid = request.args.get('findid','')
     findname = request.args.get('findname','')
-    archive = request.args.get('archive','')
+    datefrom = request.args.get('datefrom','')
+    dateto = request.args.get('dateto','')
+    archived = request.args.get('archived','')
     clearcache = request.args.get('clearcache','')
 
-    form = 'Download the order csv by clicking <a href="/static/orders.csv" />here</a><br>'
+    form = 'Download the order csv by clicking <a href="/static/orders.csv" />here</a> or the US order sheet from <a href="/static/us_orders.csv" />here</a><br>'
     
     form += """
-<form action="/check_books",method="get">
+<form action="/check_books" method="get">
 
     volume: <input name="volume" value="{}" /><br>
     country: <input name="country" value="{}" /><br>
     find by name: <input name="findname" value="{}" /><br>
     find by id: <input name="findid" value="{}" /><br>
-    archive: <input name="archive" value="{}" /><br>
+    archived: <input name="archived" value="{}" /><br>
+    datefrom: <input name="datefrom" value="{}" /><em>e.g. 2024-12-25</em><br>
+    dateto: <input name="dateto" value="{}" /><em>e.g. 2024-12-31</em><br>
     clearcache: <input name="clearcache" value="{}" /><br>
 
     <br><br>
@@ -299,18 +303,30 @@ def check_books():
     <button type='submit'>SUBMIT</button>
 
 </form>
-""".format(volume, country, findname, findid, archive, clearcache)
+""".format(volume, country, findname, findid, archived, datefrom, dateto, clearcache)
+
+    args = ''
+    if datefrom != '':
+        args += ' --datefrom={}'.format(datefrom)
+    if dateto != '':
+        args += ' --dateto={}'.format(dateto)
+
 
     if clearcache != '':
         cmd = '/usr/bin/python3 /var/www/python-realtime-poll-pusher/check_books.py --clearcache'
     elif findname != '':
         cmd = '/usr/bin/python3 /var/www/python-realtime-poll-pusher/check_books.py --findbyname={} -c static/orders.csv --packing --report -P'.format(findname)
-        if archive != '':
-            cmd += ' -a'
     elif findid != '':
         cmd = '/usr/bin/python3 /var/www/python-realtime-poll-pusher/check_books.py --findbyid={} -c static/orders.csv --packing --report -P'.format(findid)
     else:
         cmd = '/usr/bin/python3 /var/www/python-realtime-poll-pusher/check_books.py --volume="{}" --country="{}" -c static/orders.csv --packing --report -P'.format(volume,country)
+
+    if args:
+        cmd += args
+
+    if archived != '':
+        cmd += ' -a'
+
     output = subprocess.run(cmd, capture_output=True, shell=True)
     # get all data back from db
     out = output.stdout.decode()
